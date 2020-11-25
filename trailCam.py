@@ -24,45 +24,50 @@ logging.info('Starting')
 
 # Wait an initial duration to allow PIR to settle
 time.sleep(10)
+ts2 = datetime.now()
 
 while True:
     pir.wait_for_motion()
-    logging.info('Motion detected')
-    print('Motion detected')
-    while pir.motion_detected:
-        print('Beginning capture')
-        ts = '{:%Y%m%d-%H%M%S}'.format(datetime.now())
-        logging.info('Beginning capture: '+ str(ts)+'.jpg')
-        with picamera.PiCamera() as cam:
-            cam.resolution=(1024,768)
-            cam.annotate_background = picamera.Color('black')
+    ts1 = datetime.now()
+    timestamp = '{:%Y%m%d-%H%M%S}'.format(ts1)
+    logging.info('Slept for: ' + str(ts1-ts2))
+    logging.info('Motion detected starting to capture: '+ str(timestamp)+'.jpg')
+    print('Motion detected beginning capture')
+    with picamera.PiCamera() as cam:
+        cam.resolution=(1024,768)
+        cam.annotate_background = picamera.Color('black')
 
-            cam.start_recording('/home/pi/video.h264')
-            start = datetime.now()
-            while (datetime.now() - start).seconds < 30:
-                cam.annotate_text = "Peak Nature "+datetime.now().strftime('%d-%m-%y %H:%M:%S')
-                cam.wait_recording(0.2)
-            cam.stop_recording()
-        time.sleep(5)
-        timestamp = datetime.now().strftime('%d-%m-%y_%H-%M-%S')
-        input_video = "/home/pi/video.h264"
+        cam.start_recording('/home/pi/video.h264')
+        # End recording after timeout when there is no motion
+        while pir.motion_detected:
+            cam.annotate_text = "Spy 1 "+datetime.now().strftime('%d-%m-%y %H:%M:%S')
+            pir.wait_for_no_motion()
+            cam.wait_recording()
+            pir.wait_for_motion(10)
+            cam.wait_recording()
 
-        logging.info('Attempting to save capture')
+        print('Motion Ended')
+        cam.stop_recording()
+    time.sleep(0.5)
+    ts2 = datetime.now()
+    timestamp = ts2.strftime('%d-%m-%y_%H-%M-%S')
+    input_video = "/home/pi/video.h264"
 
-        if os.path.isdir('mnt/usb/videos'):
-            logging.info('Saving to /mnt/usb/videos/')
-            output_video = "/mnt/usb/videos/{}.mp4".format(timestamp)
-        elif os.path.isdir('mnt/usb1/videos'):
-            logging.info('Saving to /mnt/usb1/videos/')
-            output_video = "/mnt/usb1/videos/{}.mp4".format(timestamp)
-        elif os.path.isdir('mnt/usb2/videos'):
-            logging.info('Saving to /mnt/usb2/videos/') 
-            output_video = "/mnt/usb2/videos/{}.mp4".format(timestamp)
-        else:
-            logging.info('Saving to /home/pi/videos/')
-            output_video = "/home/pi/videos/{}.mp4".format(timestamp)
+    logging.info('Attempting to save capture')
 
-        call(["MP4Box", "-add", input_video, output_video])
-        time.sleep(10)
+    if os.path.isdir('mnt/usb/videos'):
+        logging.info('Saving to /mnt/usb/videos/')
+        output_video = "/mnt/usb/videos/{}.mp4".format(timestamp)
+    elif os.path.isdir('mnt/usb1/videos'):
+        logging.info('Saving to /mnt/usb1/videos/')
+        output_video = "/mnt/usb1/videos/{}.mp4".format(timestamp)
+    elif os.path.isdir('mnt/usb2/videos'):
+        logging.info('Saving to /mnt/usb2/videos/') 
+        output_video = "/mnt/usb2/videos/{}.mp4".format(timestamp)
+    else:
+        logging.info('Saving to /home/pi/videos/')
+        output_video = "/home/pi/videos/{}.mp4".format(timestamp)
+
+    call(["MP4Box", "-add", input_video, output_video])
     print('Motion Ended')
-    logging.info('Motion Ended')
+    logging.info('Motion Ended duration: ' + str(ts2-ts1))
